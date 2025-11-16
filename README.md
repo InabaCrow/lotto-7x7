@@ -1,0 +1,34 @@
+# 戳戳樂小遊戲 (Poke Game)
+
+一個使用 HTML、CSS、JavaScript 製作的簡單戳戳樂小遊戲。
+
+---
+
+## 🎮 遊戲玩法
+- 畫面共有 9 個方塊
+- 隨機其一藏有「⭐」
+- 點擊方塊後揭曉
+- 找到星星即獲勝！
+
+---
+
+## 📁 專案結構
+index.html  
+style.css  
+script.js  
+README.md  
+LICENSE
+
+---
+
+## 🚀 部署到 GitHub Pages
+1. 建立 GitHub Repository  
+2. 上傳全部檔案  
+3. 前往 Settings → Pages  
+4. Source 選「Deploy from branch」  
+5. 等數秒即可取得公開網址
+
+---
+
+## 📝 授權
+本專案採用 MIT License，歡迎個人、商用使用。
