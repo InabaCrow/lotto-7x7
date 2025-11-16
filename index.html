@@ -1,17 +1,786 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>戳戳樂小遊戲</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>7x7 洞洞樂</title>
+  <style>
+    :root {
+      --green: #22c55e;
+      --green-d: #16a34a;
+      --orange: #f59e0b;
+      --orange-d: #d97706;
+      --bg: #111;
+      --panel: #1f1f1f;
+      --text: #eee;
+      --muted: #b3b3b3;
+      --accent: #3b82f6;
+      --chev: #9ca3af;
+      --chip: #2a2a2a;
+      --chip-border: #3a3a3a;
+      --chip-text: #e5e7eb;
+      --chip-drawn: #374151;
+      --chip-drawn-border: #4b5563;
+      --chip-drawn-text: #9ca3af;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "微軟正黑體", "PingFang TC", "Noto Sans TC", Arial, "Helvetica Neue"; background: var(--bg); color: var(--text); margin: 0; }
+    .container { display: grid; grid-template-columns: 1fr 420px; gap: 20px; padding: 16px; align-items: start; min-height: 100%; }
+    @media (max-width: 980px){ .container{ grid-template-columns: 1fr; } }
+    .panel { background: var(--panel); padding: 16px; border-radius: 12px; order: 2; }
+    @media (min-width: 981px){
+      .panel { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+    }
+    .grid-wrap { display: flex; justify-content: center; order: 1; position: relative; }
+    .grid { --size: 7; display: grid; grid-template-columns: repeat(var(--size), 1fr); gap: 10px; width: min(92vmin, 820px); }
+
+    .hole { aspect-ratio: 1 / 1; border-radius: 10px; display: grid; place-items: center; font-weight: 700; letter-spacing: .3px; color: #0b0b0b; cursor: pointer; user-select: none; border: 1px solid rgba(0,0,0,.2); transition: transform .08s ease, filter .15s ease; text-align: center; padding: 4px; container-type: size;
+      font-family: "Microsoft JhengHei","微軟正黑體","Segoe UI","PingFang TC","Noto Sans TC",Arial,"Helvetica Neue",ui-sans-serif,system-ui;
+    }
+    .hole:hover { filter: brightness(1.05); }
+    .hole:active { transform: translateY(1px); }
+    .cell-a { background: linear-gradient(180deg, var(--green), var(--green-d)); }
+    .cell-b { background: linear-gradient(180deg, var(--orange), var(--orange-d)); }
+    .hole.drawn { cursor: default; background: #3a3a3a !important; color: #f0f0f0; border-color: #555; }
+
+    .coord-txt{ font-weight: 900; line-height: 1; white-space: nowrap; letter-spacing: .8px; font-size: 46cqw; }
+    @supports not (font-size: 1cqw){
+      .coord-txt{ font-size: clamp(18px, 8vw, 96px); }
+    }
+
+    .section-label{ font-size:12px; color:#a1a1aa; margin:14px 0 6px; letter-spacing:.2px; text-transform:uppercase }
+    .divider{ height:1px; background:#2b2b2b; border:0; margin:12px 0; }
+
+    .log { height: 220px; overflow-y: auto; background: #181818; padding: 8px; border-radius: 8px; margin-top: 6px; font-size: 14px; }
+
+    input, button, label, select { margin-top: 6px; padding: 8px 10px; border-radius: 8px; border: none; }
+    input[type="text"], input[type="number"], select { width: 100%; background: #2a2a2a; color: var(--text); }
+    input[type="range"] { width: 100%; display:block; }
+    button { cursor: pointer; background: #3a3a3a; color: var(--text); }
+    button:hover { background: #4a4a4a; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px }
+    .toolbar button { flex:1 1 0; min-width: 0; }
+
+    .reward-row { display: grid; grid-template-columns: minmax(0,1fr) 96px 84px; gap: 6px; margin-top: 6px; align-items: center; }
+    .reward-row input[type='number'] { width: 100%; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; width:100%; }
+    .hint { font-size: 13px; color: var(--muted); }
+    .pill { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #1f2937; font-size: 12px; }
+    .pill.good { background: #153a22; color: #a7f3d0; }
+    .pill.warn { background: #3a2a15; color: #fed7aa; }
+
+    .prelabel{white-space:nowrap;color:var(--muted);font-size:14px;}
+
+    /* Modal: fill the left area for wider view */
+    .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:190; }
+    .modal { background:#1f2937;border:1px solid #334155;border-radius:16px;width:600px;max-width:min(94%,600px);padding:28px 28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4) }
+    .modal h3{margin:0 0 10px;font-size:20px}
+    .modal .big{font-size:28px;font-weight:800;margin:8px 0 4px}
+    .modal .coord{font-size:13px;color:#9ca3af}
+    .modal .actions{margin-top:14px;display:flex;gap:10px;justify-content:center}
+    .modal button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer}
+
+    .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 9999; }
+    .confetti .p { position: absolute; width: 8px; height: 12px; opacity: .95; will-change: transform; transform: translateZ(0); }
+    @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+
+    .acc { display:flex; flex-direction:column; gap:8px; }
+    .acc .item { background:#1b1b1b; border:1px solid #2b2b2b; border-radius:10px; overflow:hidden; }
+    .acc .hd { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; cursor:pointer; user-select:none; }
+    .acc .hd .title{ font-weight:700; letter-spacing:.2px; }
+    .acc .hd .chev{ width:14px; height:14px; border-right:2px solid #9ca3af; border-bottom:2px solid #9ca3af; transform:rotate(-45deg); transition: transform .2s ease; margin-left:8px; }
+    .acc .item.open .hd .chev{ transform:rotate(45deg); }
+    .acc .bd { padding:0 12px 10px; }
+    .acc .content { max-height:0; overflow:hidden; transition:max-height .25s ease; }
+    .acc .item.open .content{ max-height: 2000px; }
+
+    .spoiler-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+    .spoiler-controls label{ display:flex; gap:6px; align-items:center; background:#262626; padding:6px 10px; border-radius:999px; font-size:12px; }
+    .spoiler-copy{ margin-left:auto; }
+    .spoiler-hint{ font-size:12px; color:var(--muted); margin-bottom:8px; }
+    .spoiler-group{ margin-bottom:10px; }
+    .spoiler-head{ display:flex; align-items:center; gap:8px; }
+    .spoiler-name{ font-weight:700; }
+    .spoiler-count{ font-size:12px; color:#a3a3a3; }
+    .pos-list{ margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; }
+    .coord-chip{ background: var(--chip); border:1px solid var(--chip-border); color: var(--chip-text); padding:4px 8px; border-radius:999px; font-size:12px; }
+    .coord-chip.chip-drawn{ background: var(--chip-drawn); border-color: var(--chip-drawn-border); color: var(--chip-drawn-text); text-decoration: line-through; }
+    /* Drag & drop import highlight */
+    .drop-hint{ font-size:12px; color:#9ca3af; margin-top:6px }
+    .drop-overlay{ position:fixed; inset:0; background:rgba(59,130,246,.15); border:3px dashed #3b82f6; display:none; align-items:center; justify-content:center; z-index:9990; }
+    .drop-overlay .tip{ background:#0b1220; color:#cbd5e1; padding:16px 22px; border-radius:12px; border:1px solid #1d4ed8; font-weight:700 }
+  </style>
 </head>
 <body>
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+  <div class="drop-overlay" id="drop-overlay"><div class="tip">放開滑鼠，匯入 JSON 設定/紀錄</div></div>
 
-  <h1>戳戳樂！</h1>
-  <p>找到星星 ⭐ 才能獲勝！</p>
+  <div class="container">
+    <div class="grid-wrap" id="grid-wrap">
+      <div class="grid" id="grid" aria-label="7x7 洞洞樂棋盤"></div>
 
-  <div id="game"></div>
+      <div class="modal-backdrop" id="result-backdrop" role="dialog" aria-modal="true" aria-labelledby="result-title" aria-hidden="true">
+        <div class="modal" id="result-modal">
+          <h3 id="result-title">抽到的獎項</h3>
+          <div class="big" id="result-name">—</div>
+          <div class="coord" id="result-coord">—</div>
+          <div class="actions"><button id="result-ok">好的</button></div>
+        </div>
+      </div>
+    </div>
 
-  <script src="script.js"></script>
+    <div class="panel">
+      <div class="toolbar" id="top-actions" style="margin-bottom:8px">
+        <button id="btn-random" type="button">隨機抽一個</button>
+      </div>
+      <div class="acc" id="accordion">
+        <!-- 1. 獎勵設定 -->
+        <div class="item" data-key="reward">
+          <div class="hd"><span class="title">獎勵設定</span><i class="chev"></i></div>
+          <div class="content">
+            <div class="bd">
+              <div id="reward-list"></div>
+              <div class="toolbar">
+                <button id="btn-add" type="button">新增一個獎勵</button>
+                <button id="btn-build" type="button">建立獎池</button>
+              </div>
+              <div class="row" style="justify-content:flex-start; gap:10px;">
+                <label for="filler" class="prelabel">未中獎文字：</label>
+                <input type="text" id="filler" value="銘謝惠顧" placeholder="不足補位（自動補到 49 格）" style="flex:1 1 auto;" />
+              </div>
+              <div class="row">
+                <div class="hint">已輸入總數：
+                  <span id="sum" class="pill">0</span> / 49　剩餘：<span id="remain" class="pill">49</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 抽獎控制與統計 -->
+        <div class="item" data-key="control">
+          <div class="hd"><span class="title">抽獎控制與統計</span><i class="chev"></i></div>
+          <div class="content">
+            <div class="bd">
+              <div id="stats" class="row" style="justify-content:flex-start; gap:12px; flex-wrap:wrap;"></div>
+
+              <hr class="divider" />
+              <div class="section-label">抽取紀錄</div>
+              <div class="log" id="log"><div>尚未抽取</div></div>
+
+              <hr class="divider" />
+              <div class="section-label">大獎劇透（僅右側可見）</div>
+              <div class="hint">預先查看各獎項位置；此區僅右側可見。</div>
+              <div class="spoiler-controls">
+                <label><input id="sp-undrawn" type="checkbox" /> 僅顯示未抽</label>
+                <label><input id="sp-exclude-filler" type="checkbox" checked /> 排除補位（銘謝惠顧）</label>
+                <button class="spoiler-copy" id="sp-copy" type="button">複製清單</button>
+              </div>
+              <div id="spoiler-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. 顯示／音效（含自訂音效） -->
+        <div class="item" data-key="display">
+          <div class="hd"><span class="title">顯示／音效</span><i class="chev"></i></div>
+          <div class="content">
+            <div class="bd">
+              <div class="row" style="gap:10px; flex-wrap:wrap">
+                <div style="flex:1 1 260px; width:100%">
+                  <div class="hint" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <span>整體音量</span><span id="vol-label">60%</span>
+                  </div>
+                  <input id="volume" type="range" min="0" max="100" value="60" />
+                  <button id="btn-vol-test" style="margin-top:6px;width:100%" type="button">預覽（嗶聲）</button>
+                </div>
+              </div>
+
+              <hr class="divider" />
+              <div class="section-label">自訂音效</div>
+              <div class="row" style="flex-direction:column; align-items:stretch; gap:12px">
+                <div style="background:#232323; padding:10px; border-radius:10px">
+                  <div class="hint" style="margin-bottom:6px">中獎音效</div>
+                  <div class="toolbar" style="gap:8px">
+                    <label style="background:#2a2a2a;border-radius:8px;padding:8px 10px;cursor:pointer; flex:1 1 0; min-width:0; text-align:center">
+                      上傳檔案
+                      <input id="win-audio" type="file" accept="audio/*" hidden />
+                    </label>
+                    <button id="win-test" type="button" style="flex:1 1 0; min-width:0">測試中獎</button>
+                    <button id="win-clear" type="button" style="flex:1 1 0; min-width:0">移除</button>
+                  </div>
+                  <div class="hint" style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+                    <span>中獎音量</span><span id="win-vol-label">100%</span>
+                  </div>
+                  <input id="win-volume" type="range" min="0" max="100" value="100" />
+                </div>
+                <div style="background:#232323; padding:10px; border-radius:10px">
+                  <div class="hint" style="margin-bottom:6px">未中音效</div>
+                  <div class="toolbar" style="gap:8px">
+                    <label style="background:#2a2a2a;border-radius:8px;padding:8px 10px;cursor:pointer; flex:1 1 0; min-width:0; text-align:center">
+                      上傳檔案
+                      <input id="miss-audio" type="file" accept="audio/*" hidden />
+                    </label>
+                    <button id="miss-test" type="button" style="flex:1 1 0; min-width:0">測試沒中</button>
+                    <button id="miss-clear" type="button" style="flex:1 1 0; min-width:0">移除</button>
+                  </div>
+                  <div class="hint" style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+                    <span>未中音量</span><span id="miss-vol-label">100%</span>
+                  </div>
+                  <input id="miss-volume" type="range" min="0" max="100" value="100" />
+                </div>
+                <div class="hint" id="audio-hint">未上傳時會使用內建嗶聲。按「測試中獎／測試沒中」會同時顯示測試對話框。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. 匯出／匯入 -->
+        <div class="item" data-key="io">
+          <div class="hd"><span class="title">匯出／匯入</span><i class="chev"></i></div>
+          <div class="content">
+            <div class="bd">
+              <div class="toolbar">
+                <button id="btn-export" type="button">匯出設定/紀錄</button>
+                <button id="btn-import" type="button">匯入設定/紀錄</button>
+                <input id="file-import" type="file" accept="application/json" hidden />
+              </div>
+              <div class="drop-hint">💡 也可以把 <code>.json</code> 檔案直接拖曳到頁面匯入</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const GRID_SIZE = 7;
+    const TOTAL = GRID_SIZE * GRID_SIZE;
+    const ROWS = ['A','B','C','D','E','F','G'];
+    const COLS_NUM = [1,2,3,4,5,6,7];
+
+    const els = {
+      grid: document.getElementById('grid'),
+      stats: document.getElementById('stats'),
+      log: document.getElementById('log'),
+      filler: document.getElementById('filler'),
+      btnBuild: document.getElementById('btn-build'),
+      btnAdd: document.getElementById('btn-add'),
+      rewardList: document.getElementById('reward-list'),
+      sum: document.getElementById('sum'),
+      remain: document.getElementById('remain'),
+      btnExport: document.getElementById('btn-export'),
+      btnImport: document.getElementById('btn-import'),
+      fileImport: document.getElementById('file-import'),
+      resultBackdrop: document.getElementById('result-backdrop'),
+      resultTitle: document.getElementById('result-title'),
+      resultName: document.getElementById('result-name'),
+      resultCoord: document.getElementById('result-coord'),
+      resultOk: document.getElementById('result-ok'),
+      confetti: document.getElementById('confetti'),
+      dropOverlay: document.getElementById('drop-overlay'),
+      // audio controls
+      winAudioFile: document.getElementById('win-audio'),
+      missAudioFile: document.getElementById('miss-audio'),
+      winTest: document.getElementById('win-test'),
+      missTest: document.getElementById('miss-test'),
+      winClear: document.getElementById('win-clear'),
+      missClear: document.getElementById('miss-clear'),
+      winVol: document.getElementById('win-volume'),
+      missVol: document.getElementById('miss-volume'),
+      winVolLabel: document.getElementById('win-vol-label'),
+      missVolLabel: document.getElementById('miss-vol-label'),
+      audioHint: document.getElementById('audio-hint'),
+      vol: document.getElementById('volume'),
+      volLabel: document.getElementById('vol-label'),
+      btnVolTest: document.getElementById('btn-vol-test'),
+      acc: document.getElementById('accordion'),
+      spList: document.getElementById('spoiler-list'),
+      spUndrawn: document.getElementById('sp-undrawn'),
+      spExcludeFiller: document.getElementById('sp-exclude-filler'),
+      spCopy: document.getElementById('sp-copy'),
+      btnRandom: document.getElementById('btn-random'),
+    };
+
+    let state = { cells: [], drawnOrder: [] };
+
+    function on(el, evt, fn){ if(el) el.addEventListener(evt, fn); }
+
+    /* Single-open Accordion */
+    const ACC_KEY = 'lotto-7x7-acc-open';
+    function accLoad(){
+      let openKey = null;
+      try{ openKey = localStorage.getItem(ACC_KEY) || null; }catch{}
+      const items = els.acc.querySelectorAll('.item');
+      let opened = false;
+      items.forEach(it=>{
+        if(openKey && it.dataset.key === openKey){ it.classList.add('open'); opened = true; }
+        else{ it.classList.remove('open'); }
+      });
+      if(!opened && items[0]) items[0].classList.add('open');
+    }
+    function accSave(openKey){
+      try{ localStorage.setItem(ACC_KEY, openKey || ''); }catch{}
+    }
+    function accInit(){
+      els.acc.addEventListener('click', (e)=>{
+        const hd = e.target.closest('.hd'); if(!hd) return;
+        const item = hd.parentElement;
+        els.acc.querySelectorAll('.item').forEach(it=>{
+          if(it!==item) it.classList.remove('open');
+        });
+        const willOpen = !item.classList.contains('open');
+        if(willOpen){ item.classList.add('open'); accSave(item.dataset.key); }
+        else{ item.classList.remove('open'); accSave(''); }
+      });
+      accLoad();
+    }
+
+    /* Prefs */
+    const PREF_KEY = 'lotto-7x7-prefs';
+    function loadPrefs(){
+      try{
+        const p = JSON.parse(localStorage.getItem(PREF_KEY))||{};
+        if(typeof p.volume === 'number'){ els.vol.value = Math.round(p.volume*100); }
+        if(typeof p.winVol === 'number'){ els.winVol.value = Math.round(p.winVol*100); }
+        if(typeof p.missVol === 'number'){ els.missVol.value = Math.round(p.missVol*100); }
+      }catch{}
+      updateVolLabels();
+    }
+    function savePrefs(){
+      const p = { volume: getVolume(), winVol: getWinVol(), missVol: getMissVol() };
+      localStorage.setItem(PREF_KEY, JSON.stringify(p));
+    }
+
+    /* Audio */
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+    let beatsAllowed = false;
+    document.addEventListener('pointerdown', ()=> beatsAllowed = true, {once:true});
+
+    let custom = { win: null, miss: null };
+
+    function getVolume(){ return Math.max(0, Math.min(1, parseInt(els.vol.value,10)/100 || 0)); }
+    function getWinVol(){ return Math.max(0, Math.min(1, parseInt(els.winVol.value,10)/100 || 0)); }
+    function getMissVol(){ return Math.max(0, Math.min(1, parseInt(els.missVol.value,10)/100 || 0)); }
+    function updateVolLabels(){
+      els.volLabel.textContent = Math.round(getVolume()*100) + '%';
+      els.winVolLabel.textContent = Math.round(getWinVol()*100) + '%';
+      els.missVolLabel.textContent = Math.round(getMissVol()*100) + '%';
+    }
+
+    function setAudioFromFile(inputEl, key){
+      const f = inputEl.files && inputEl.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          localStorage.setItem('lotto-7x7-audio-'+key, reader.result);
+          custom[key] = new Audio(reader.result);
+          els.audioHint.textContent = '已載入自訂音效：中獎/未中將播放你上傳的音檔（可個別調整音量）。';
+        } catch(err){ alert('音效載入失敗：'+err.message); }
+      };
+      reader.readAsDataURL(f);
+    }
+
+    function clearCustom(key){
+      localStorage.removeItem('lotto-7x7-audio-'+key);
+      custom[key] = null;
+    }
+
+    function beep(freq=660, duration=0.12, type='sine', gain=0.06){
+      if(!beatsAllowed) return;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type; o.frequency.value = freq; g.gain.value = gain * getVolume();
+      o.connect(g).connect(ctx.destination); o.start();
+      setTimeout(()=>{ o.stop(); }, duration*1000);
+    }
+    function winSfx(){
+      if(custom.win){ try{ custom.win.volume = getVolume() * getWinVol(); custom.win.currentTime=0; custom.win.play(); }catch{} return; }
+      [740,880,988].forEach((f,i)=> setTimeout(()=>beep(f,0.09,'triangle',0.06), i*90));
+    }
+    function missSfx(){
+      if(custom.miss){ try{ custom.miss.volume = getVolume() * getMissVol(); custom.miss.currentTime=0; custom.miss.play(); }catch{} return; }
+      [330,260].forEach((f,i)=> setTimeout(()=>beep(f,0.10,'sine',0.06), i*110));
+    }
+    function doneSfx(){}
+
+    function updateStats() {
+      const drawn = state.cells.filter(c => c.drawn).length;
+      const remain = TOTAL - drawn;
+      const mk = (label, val) => `<span class="pill">${label}：<strong>${val}</strong></span>`;
+      els.stats.innerHTML = mk('總格數', TOTAL) + ' ' + mk('已抽', drawn) + ' ' + mk('未抽', remain);
+    }
+
+    function coordOf(idx){
+      const r = Math.floor(idx/GRID_SIZE), c = idx%GRID_SIZE;
+      return `${ROWS[r]}${COLS_NUM[c]}`;
+    }
+
+    function renderGrid() {
+      els.grid.style.setProperty('--size', GRID_SIZE);
+      els.grid.innerHTML = '';
+      state.cells.forEach((cell, idx) => {
+        const r = Math.floor(idx / GRID_SIZE), c = idx % GRID_SIZE;
+        const parityClass = (r + c) % 2 === 0 ? 'cell-a' : 'cell-b';
+        const div = document.createElement('div');
+        div.className = `hole ${parityClass}` + (cell.drawn ? ' drawn' : '');
+        if (!cell.drawn) {
+          const span = document.createElement('span');
+          span.className = 'coord-txt';
+          span.textContent = coordOf(idx);
+          div.appendChild(span);
+          div.addEventListener('click', () => drawAt(idx));
+        } else {
+          div.textContent = cell.label;
+        }
+        els.grid.appendChild(div);
+      });
+      updateStats();
+      renderSpoiler();
+    }
+
+    function logDraw(idx) {
+      const item = state.cells[idx];
+      const num = state.drawnOrder.length;
+      const row = document.createElement('div');
+      row.textContent = `${num}. ${coordOf(idx)} → ${item.label}`;
+      if (els.log.firstElementChild && els.log.firstElementChild.textContent === '尚未抽取') {
+        els.log.innerHTML = '';
+      }
+      els.log.prepend(row);
+    }
+
+    function checkAllDone(){
+      const allDrawn = state.cells.every(c=>c.drawn);
+      if(allDrawn){
+        setTimeout(()=> alert('全部抽完！'), 80);
+      }
+    }
+
+    function showResultDialog(name, coord, isWin){
+      els.resultName.textContent = name;
+      els.resultCoord.textContent = `位置：${coord}`;
+      els.resultTitle.textContent = isWin ? '恭喜！抽到' : '抽到';
+      els.resultBackdrop.style.display = 'flex';
+      els.resultBackdrop.setAttribute('aria-hidden','false');
+      function close(){ els.resultBackdrop.style.display='none'; els.resultBackdrop.setAttribute('aria-hidden','true'); cleanup(); }
+      function backdropClose(e){ if(e.target===els.resultBackdrop) close(); }
+      function escClose(e){ if(e.key==='Escape') close(); }
+      function cleanup(){
+        els.resultOk.removeEventListener('click', close);
+        els.resultBackdrop.removeEventListener('click', backdropClose);
+        document.removeEventListener('keydown', escClose);
+      }
+      els.resultOk.addEventListener('click', close);
+      els.resultBackdrop.addEventListener('click', backdropClose);
+      document.addEventListener('keydown', escClose);
+      if(isWin && name.indexOf('（測試）') === -1) launchConfetti();
+    }
+
+
+function randomDraw(){
+  if(!state || !state.cells || state.cells.length===0){
+    buildPool();
+  }
+  const candidates = [];
+  for(let i=0;i<state.cells.length;i++){ if(!state.cells[i].drawn) candidates.push(i); }
+  if(!candidates.length){ alert('全部抽完！'); return; }
+  const idx = candidates[Math.floor(Math.random()*candidates.length)];
+  drawAt(idx);
+}
+
+    function drawAt(idx) {
+      const cell = state.cells[idx];
+      if (!cell || cell.drawn) return;
+      cell.drawn = true;
+      state.drawnOrder.push(idx);
+
+      const isFinalAfterThis = state.cells.every(c=>c.drawn);
+
+      renderGrid();
+      logDraw(idx);
+      const isWin = cell.label.trim() !== (els.filler.value.trim() || '未設定');
+      if(!isFinalAfterThis){ (isWin ? winSfx : missSfx)(); }
+
+      const el = els.grid.children[idx];
+      if (el) el.animate([{filter:'brightness(1.9)'},{filter:'brightness(1)'}],{duration:650,easing:'ease-out'});
+      showResultDialog(cell.label, coordOf(idx), isWin);
+      save();
+      checkAllDone();
+    }
+
+    function buildPool() {
+      let list = [];
+      const rows = els.rewardList.querySelectorAll('.reward-row');
+      rows.forEach(row => {
+        const name = row.querySelector("input[type='text']").value.trim();
+        const num = parseInt(row.querySelector("input[type='number']").value,10);
+        if (name && num>0) for (let i=0;i<num;i++) list.push(name);
+      });
+      while (list.length < TOTAL) list.push(els.filler.value.trim() || '未設定');
+      list = list.slice(0, TOTAL);
+      shuffle(list);
+      state.cells = list.map(label => ({ label, drawn: false }));
+      state.drawnOrder = [];
+      renderGrid();
+      els.log.innerHTML = '<div>尚未抽取</div>';
+      save();
+    }
+
+    function shuffle(arr){ for (let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } }
+
+    function addRewardRow(name='',num=1) {
+      const row = document.createElement('div');
+      row.className = 'reward-row';
+      row.innerHTML = `<input type="text" placeholder="獎品名稱" value="${name.replace(/"/g,'&quot;')}" />
+        <input type="number" min="1" value="${num}" />
+        <button type="button" class="btn-del">刪除</button>`;
+      const btn = row.querySelector('.btn-del');
+      btn.addEventListener('click',()=>{ row.remove(); recalcSum(); save(); });
+      const [nameInput, numInput] = row.querySelectorAll('input');
+      nameInput.addEventListener('input', ()=>{ recalcSum(); save(); });
+      numInput.addEventListener('input', ()=>{ recalcSum(); save(); });
+      els.rewardList.appendChild(row);
+      nameInput.focus();
+      recalcSum();
+    }
+
+    function recalcSum(){
+      const rows = els.rewardList.querySelectorAll('.reward-row');
+      let sum = 0; const config=[];
+      rows.forEach(r=>{
+        const nameEl=r.querySelector("input[type='text']");
+        const numEl=r.querySelector("input[type='number']");
+        const n = parseInt(numEl.value,10); if(n>0) sum += n;
+        if(nameEl.value.trim()) config.push({name:nameEl.value.trim(), num:Math.max(1,parseInt(numEl.value,10)||1)});
+      });
+      const remain = Math.max(0, TOTAL - sum);
+      els.sum.textContent = sum;
+      els.remain.textContent = remain;
+      els.sum.className = 'pill ' + (sum<=TOTAL ? 'good' : 'warn');
+      els.remain.className = 'pill ' + (sum<=TOTAL ? 'good' : 'warn');
+      try{
+        localStorage.setItem('lotto-7x7-config', JSON.stringify({rows:config, filler: els.filler.value}));
+      }catch{}
+      renderSpoiler();
+    }
+
+    function save(){ try{ localStorage.setItem('lotto-7x7-state', JSON.stringify(state)); }catch{} }
+    function load(){
+      try{
+        const cfg = JSON.parse(localStorage.getItem('lotto-7x7-config'));
+        if(cfg && Array.isArray(cfg.rows)){
+          els.rewardList.innerHTML='';
+          cfg.rows.forEach(r=> addRewardRow(r.name, r.num));
+          if (cfg.filler!==undefined) els.filler.value = cfg.filler;
+        }
+      }catch{}
+      try{
+        const s = JSON.parse(localStorage.getItem('lotto-7x7-state'));
+        if(s && Array.isArray(s.cells) && s.cells.length===TOTAL){ state = s; }
+      }catch{}
+    }
+
+    function exportAll(){
+      const rows = [...els.rewardList.querySelectorAll('.reward-row')].map(r=>({
+        name: r.querySelector("input[type='text']").value.trim(),
+        num: parseInt(r.querySelector("input[type='number']").value,10)||1
+      })).filter(r=>r.name);
+      const prefs = { volume: getVolume(), winVol: getWinVol(), missVol: getMissVol() };
+      const data = { version:24, createdAt: new Date().toISOString(), filler: els.filler.value, rewardRows: rows, state, prefs };
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob); const a=document.createElement('a');
+      a.href=url; a.download='lotto-7x7-export.json'; a.click(); URL.revokeObjectURL(url);
+    }
+
+    function importAll(file){
+      const reader = new FileReader();
+      reader.onload = e => {
+        try{
+          const data = JSON.parse(e.target.result);
+          if(!data || !data.state || !Array.isArray(data.state.cells)) throw new Error('檔案格式不正確');
+          els.rewardList.innerHTML='';
+          if(Array.isArray(data.rewardRows)) data.rewardRows.forEach(r=> addRewardRow(r.name, r.num));
+          if(data.filler!==undefined) els.filler.value = data.filler;
+          state = { cells: data.state.cells.map(c=>({label:c.label, drawn: !!c.drawn})), drawnOrder: Array.isArray(data.state.drawnOrder)? data.state.drawnOrder: [] };
+          if(data.prefs){
+            if(typeof data.prefs.volume === 'number'){ els.vol.value = Math.round(data.prefs.volume*100); }
+            if(typeof data.prefs.winVol === 'number'){ els.winVol.value = Math.round(data.prefs.winVol*100); }
+            if(typeof data.prefs.missVol === 'number'){ els.missVol.value = Math.round(data.prefs.missVol*100); }
+            updateVolLabels();
+          }
+          renderGrid();
+          els.log.innerHTML='';
+          if(state.drawnOrder.length===0){ els.log.innerHTML='<div>尚未抽取</div>'; }
+          else{
+            state.drawnOrder.forEach((idx,i)=>{
+              const row=document.createElement('div');
+              row.textContent = `${i+1}. ${coordOf(idx)} → ${state.cells[idx].label}`;
+              els.log.appendChild(row);
+            });
+          }
+          recalcSum();
+          save();
+          alert('匯入完成');
+        }catch(err){ alert('匯入失敗：'+err.message); }
+      };
+      reader.readAsText(file);
+    }
+
+    /* Drag & Drop import */
+    function setupDragImport(){
+      const overlay = els.dropOverlay;
+      function prevent(e){ e.preventDefault(); e.stopPropagation(); }
+      ['dragenter','dragover'].forEach(evt=>{
+        window.addEventListener(evt, (e)=>{ prevent(e); overlay.style.display='flex'; });
+      });
+      ['dragleave','dragend','drop'].forEach(evt=>{
+        window.addEventListener(evt, (e)=>{ prevent(e); if(evt!=='drop') overlay.style.display='none'; });
+      });
+      window.addEventListener('drop', (e)=>{
+        overlay.style.display='none';
+        const files = e.dataTransfer?.files || [];
+        if(files.length){
+          const f = files[0];
+          if(f.type==='application/json' || f.name.endsWith('.json')){
+            importAll(f);
+          }else{
+            alert('請拖曳 .json 檔案');
+          }
+        }
+      });
+    }
+
+    function launchConfetti(){
+      const root = els.confetti; if(!root) return; root.innerHTML = '';
+      const colors = ['#f87171','#fb923c','#fbbf24','#34d399','#60a5fa','#a78bfa','#f472b6'];
+      const N = 160;
+      for(let i=0;i<N;i++){
+        const p = document.createElement('div');
+        p.className = 'p';
+        const x = Math.random()*100;
+        const s = 0.7 + Math.random()*1.6;
+        const d = 2.6 + Math.random()*3.2;
+        const delay = Math.random()*0.35;
+        const color = colors[(Math.random()*colors.length)|0];
+        p.style.left = x+'vw';
+        p.style.top = '-10vh';
+        p.style.background = color;
+        p.style.transform = `translateY(-10vh) scale(${s})`;
+        p.style.animation = `fall ${d}s linear ${delay}s forwards`;
+        p.style.borderRadius = Math.random()>.5 ? '2px' : '50%';
+        root.appendChild(p);
+      }
+      setTimeout(()=>{ root.innerHTML=''; }, 5200);
+    }
+
+    function isFillerLabel(label){
+      const f = (els.filler.value.trim() || '未設定');
+      return label.trim() === f;
+    }
+    function buildSpoilerData(){
+      const arr = [];
+      for(let i=0;i<state.cells.length;i++){
+        const c = state.cells[i];
+        arr.push({ idx: i, label: c.label, coord: coordOf(i), drawn: !!c.drawn });
+      }
+      const onlyUndrawn = els.spUndrawn.checked;
+      const excludeFiller = els.spExcludeFiller.checked;
+      const base = arr.filter(x=> (!excludeFiller || !isFillerLabel(x.label)));
+      const map = new Map();
+      base.forEach(x=>{
+        let g = map.get(x.label);
+        if(!g){ g = { label: x.label, total:0, remaining:0, items:[] }; map.set(x.label, g); }
+        g.total++;
+        if(!x.drawn) g.remaining++;
+        if(!onlyUndrawn || !x.drawn) g.items.push(x);
+      });
+      const groups = [...map.values()].sort((a,b)=> b.remaining - a.remaining || b.total - a.total || (''+a.label).localeCompare(''+b.label));
+      return groups;
+    }
+    function renderSpoiler(){
+      if(!els.spList) return;
+      const groups = buildSpoilerData();
+      if(groups.length===0){ els.spList.innerHTML = '<div class="hint">目前沒有可顯示的項目（可能是尚未建立獎池，或全被篩選掉）。</div>'; return; }
+      const wrap = document.createElement('div');
+      groups.forEach((g)=>{
+        const container = document.createElement('div'); container.className = 'spoiler-group';
+        const head = document.createElement('div'); head.className = 'spoiler-head';
+        head.innerHTML = `<span class="spoiler-name">${g.label}</span><span class="spoiler-count">（${g.remaining}/${g.total}）</span>`;
+        const list = document.createElement('div'); list.className = 'pos-list';
+        g.items.forEach(it=>{
+          const chip = document.createElement('span');
+          chip.className = 'coord-chip' + (it.drawn ? ' chip-drawn' : '');
+          chip.textContent = it.coord;
+          chip.title = it.drawn ? '已抽' : '未抽';
+          chip.addEventListener('click', ()=>{
+            const cell = els.grid.children[it.idx];
+            if(cell){
+              cell.scrollIntoView({behavior:'smooth', block:'center'});
+              cell.animate([{transform:'scale(1.0)'},{transform:'scale(1.06)'},{transform:'scale(1.0)'}],{duration:500,easing:'ease-out'});
+            }
+          });
+          list.appendChild(chip);
+        });
+        container.appendChild(head);
+        container.appendChild(list);
+        wrap.appendChild(container);
+      });
+      els.spList.innerHTML = '';
+      els.spList.appendChild(wrap);
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+      accInit();
+      loadPrefs();
+
+      on(els.vol, 'input', ()=>{ updateVolLabels(); savePrefs(); });
+      on(els.btnVolTest, 'click', ()=>{ beep(600,0.12,'sine',0.06); setTimeout(()=>beep(880,0.1,'triangle',0.06),130); });
+
+      on(els.winAudioFile, 'change', ()=> setAudioFromFile(els.winAudioFile, 'win'));
+      on(els.missAudioFile, 'change', ()=> setAudioFromFile(els.missAudioFile, 'miss'));
+      on(els.winTest, 'click', ()=>{ winSfx(); showResultDialog('（測試）中獎音效', 'A1', true); });
+      on(els.missTest, 'click', ()=>{ missSfx(); showResultDialog('（測試）未中音效', 'A1', false); });
+      on(els.winClear, 'click', ()=>{ clearCustom('win'); alert('已移除中獎音效'); });
+      on(els.missClear, 'click', ()=>{ clearCustom('miss'); alert('已移除未中音效'); });
+      on(els.winVol, 'input', ()=>{ updateVolLabels(); savePrefs(); });
+      on(els.btnRandom, 'click', randomDraw);
+      on(els.missVol, 'input', ()=>{ updateVolLabels(); savePrefs(); });
+
+      on(els.btnAdd, 'click', ()=> addRewardRow());
+      on(els.btnBuild, 'click', buildPool);
+      on(els.btnExport, 'click', exportAll);
+      on(els.btnImport, 'click', ()=> els.fileImport && els.fileImport.click());
+      on(els.fileImport, 'change', (e)=>{ const f=e.target.files && e.target.files[0]; if(f) importAll(f); e.target.value=''; });
+      on(els.filler, 'input', recalcSum);
+
+      on(els.spUndrawn, 'change', renderSpoiler);
+      on(els.spExcludeFiller, 'change', renderSpoiler);
+      on(els.spCopy, 'click', ()=>{
+        const groups = buildSpoilerData();
+        if(groups.length===0){ alert('沒有可複製的內容'); return; }
+        let txt = '';
+        groups.forEach((g)=>{
+          txt += `${g.label} (${g.remaining}/${g.total})\n` + g.items.map(it=>it.coord + (it.drawn?'(已抽)':'')).join(', ') + '\n\n';
+        });
+        navigator.clipboard.writeText(txt).then(()=> alert('已複製到剪貼簿')).catch(()=> alert('複製失敗，可能被瀏覽器阻擋'));
+      });
+
+      load();
+      if(els.rewardList.children.length === 0){
+        addRewardRow('明信片', 5);
+        addRewardRow('電影票', 2);
+      }
+      try{ const s = JSON.parse(localStorage.getItem('lotto-7x7-state')); if(s && Array.isArray(s.cells) && s.cells.length===TOTAL){ state = s; } }catch{}
+      renderGrid();
+      if(!state.cells.length){ buildPool(); }
+
+      setupDragImport();
+    });
+  </script>
 </body>
 </html>
