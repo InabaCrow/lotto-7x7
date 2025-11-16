@@ -21,14 +21,5 @@ LICENSE
 
 ---
 
-## 🚀 部署到 GitHub Pages
-1. 建立 GitHub Repository  
-2. 上傳全部檔案  
-3. 前往 Settings → Pages  
-4. Source 選「Deploy from branch」  
-5. 等數秒即可取得公開網址
-
----
-
 ## 📝 授權
 本專案採用 MIT License，歡迎個人、商用使用。
